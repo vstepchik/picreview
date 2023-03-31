@@ -1,0 +1,32 @@
+version: 1
+disable_existing_loggers: False
+formatters:
+  compact:
+    format: '%(asctime)s %(levelname)s: %(message)s'
+    datefmt: '%H:%M:%S'
+  long:
+    format: '%(asctime)s [%(name)s > %(funcName)s] %(levelname)s - %(message)s'
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: compact
+    stream: ext://sys.stdout
+
+  file:
+    class: app.logger.MkdirTimedRotatingFileHandler
+    level: DEBUG
+    formatter: long
+    filename: userdata/logs/app.log
+    encoding: utf8
+
+loggers:
+  "null":
+    level: DEBUG
+    handlers: [console, file]
+    propagate: no
+
+root:
+  level: DEBUG
+  handlers: [console, file]
