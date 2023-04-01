@@ -18,7 +18,7 @@ if __name__ == "__main__":
     log.info("Starting application...")
     backend = PicReview()
     main_window = MainWindow(
-        window_name=f"PicReview v{app.__version__}",
+        window_title=f"PicReview v{app.__version__}",
         backend=backend,
         imgui_ini_file_location=USERDATA_PATH.joinpath("imgui.ini"),
     )

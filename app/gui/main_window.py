@@ -1,6 +1,7 @@
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 import OpenGL.GL as GL
 import glfw
@@ -14,7 +15,8 @@ _log = logging.getLogger(__name__)
 
 class MainWindow:
     _backend: PicReview
-    _window_name: str
+    __window_title: str
+    __window_title_postfix: str = ""
     __imgui_ini_file_location: Path
     __window = None
 
@@ -24,10 +26,17 @@ class MainWindow:
     __show_style_editor: bool = False
     __show_metrics: bool = False
 
-    def __init__(self, window_name: str, backend: PicReview, imgui_ini_file_location: Path = Path("imgui.ini")):
-        self._window_name = window_name
+    def __init__(self, window_title: str, backend: PicReview, imgui_ini_file_location: Path = Path("imgui.ini")):
+        self.__window_title = window_title
         self.__imgui_ini_file_location = imgui_ini_file_location.absolute()
         self._backend = backend
+
+    def update_title(self, title: Optional[str] = None, postfix: Optional[str] = None):
+        if title is not None:
+            self.__window_title = title
+        if postfix is not None:
+            self.__window_title_postfix = postfix
+        glfw.set_window_title(self.__window, self.__window_title + self.__window_title_postfix)
 
     def show(self):
         if self.__started:
@@ -35,7 +44,7 @@ class MainWindow:
             return
 
         _log.info("Initializing GUI")
-        self.__window = MainWindow.__glfw_init_window(self._window_name)
+        self.__window = MainWindow.__glfw_init_window(self.__window_title)
         imgui.create_context()
         imgui.get_io().ini_file_name = str(self.__imgui_ini_file_location).encode()
         _log.debug(f"imgui ini file location: {imgui.get_io().ini_file_name}")
@@ -44,7 +53,10 @@ class MainWindow:
         self.__started = True
 
         _log.debug("Starting backend")
-        self._backend.run()
+        self._backend.set_workspace_dir(Path("."))  # todo: use file selector or smth
+        window_postfix = f" :: {self._backend.get_workspace_dir()}" if self._backend.get_workspace_dir() is not None else ""
+        if window_postfix != self.__window_title_postfix:
+            self.update_title(postfix=window_postfix)
         _log.info("Starting GUI")
         while not glfw.window_should_close(self.__window):
             glfw.poll_events()
@@ -107,7 +119,7 @@ class MainWindow:
         pass
 
     @staticmethod
-    def __glfw_init_window(window_name: str):
+    def __glfw_init_window(window_title: str):
         width, height = 1920, 1080  # 3840, 2160
 
         if not glfw.init():
@@ -130,7 +142,7 @@ class MainWindow:
         glfw.window_hint(glfw.MAXIMIZED, GL.GL_TRUE)
 
         # Create a windowed mode window and its OpenGL context
-        window = glfw.create_window(int(width), int(height), window_name, None, None)
+        window = glfw.create_window(int(width), int(height), window_title, None, None)
         glfw.make_context_current(window)
 
         if not window:
