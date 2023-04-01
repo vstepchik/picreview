@@ -5,14 +5,18 @@ from pathlib import Path
 from time import time
 from typing import Optional
 
+from app.repository import Repository
+
 _log = logging.getLogger(__name__)
 
 
 class WorkspaceManager:
     # todo: watch workspace path and update on changes
     __workspace_path: Optional[Path] = None
+    __repository: Repository
 
-    def __init__(self):
+    def __init__(self, repo: Repository):
+        self.__repository = repo
         _log.info("PicReview backend initialized")
 
     def get_workspace_dir(self) -> Optional[Path]:

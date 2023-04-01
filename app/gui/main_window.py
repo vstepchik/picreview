@@ -53,7 +53,7 @@ class MainWindow:
         self.__started = True
 
         _log.debug("Starting backend")
-        self._backend.set_workspace_dir(Path("."))  # todo: use file selector or smth
+        self._backend.set_workspace_dir(Path("C:\\Users\\vital\\AI\\repos\\sygil-webui"))  # todo: use file selector or smth
         window_postfix = f" :: {self._backend.get_workspace_dir()}" if self._backend.get_workspace_dir() is not None else ""
         if window_postfix != self.__window_title_postfix:
             self.update_title(postfix=window_postfix)

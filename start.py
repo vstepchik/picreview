@@ -16,7 +16,7 @@ if __name__ == "__main__":
         logging.config.dictConfig(yaml.safe_load(f))
     log = logging.getLogger(__name__)
     log.info("Starting application...")
-    backend = PicReview()
+    backend = PicReview(USERDATA_PATH.joinpath("database.sqlite3"))
     main_window = MainWindow(
         window_title=f"PicReview v{app.__version__}",
         backend=backend,
