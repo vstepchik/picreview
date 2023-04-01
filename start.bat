@@ -9,7 +9,7 @@ cd /d "%TOOL_DIR%"
 
 rem Create virtual environment if needed
 if not exist "env" (
-    python3 -m venv env
+    python -m venv env
 )
 
 rem Activate virtual environment
@@ -17,14 +17,14 @@ call env\Scripts\activate.bat
 
 rem Upgrade pip
 if not exist env\Scripts\pip.exe (
-    python3 -m ensurepip --upgrade
+    python -m ensurepip --upgrade
 )
 
 rem Install dependencies
 pip install -r requirements.txt
 
 rem Run the script
-python3 start.py
+python start.py
 
 rem Deactivate virtual environment
 deactivate
