@@ -4,6 +4,7 @@ from typing import Optional, List
 
 import imgui
 
+from app.gui.file_selector import FileSelector
 from app.model.workspace import Workspace
 from app.pic_review import PicReview
 
@@ -15,9 +16,10 @@ class WorkspaceSelector:
     _backend: PicReview
 
     # create modal
-    _input_name: str = ""
     _input_path: str = ""
+    _input_name: str = ""
     _show_create_dialog: bool = False
+    _file_selector: FileSelector = FileSelector(filter_predicate=lambda path: path.is_dir())
     # delete modal
     _selected_ws_id: Optional[int] = None
     _show_delete_ws_id: Optional[int] = None
@@ -94,18 +96,22 @@ class WorkspaceSelector:
     def _render_ws_create_dialog(self):
         title = "Create workspace"
         imgui.open_popup(title)
+        imgui.set_next_window_size(480, 640, imgui.FIRST_USE_EVER)
         opened, visible = imgui.begin_popup_modal(
             title,
             True,
-            imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE | imgui.WINDOW_ALWAYS_AUTO_RESIZE,
         )
         if opened:
-            _, self._input_name = imgui.input_text("Name", self._input_name, 40)
+            imgui.begin_child("Work dir select", -1, -100, True)
+            self._file_selector.render()
+            if self._file_selector.selection_updated:
+                self._input_path = str(self._file_selector.selection.absolute())
+            imgui.end_child()
             _, self._input_path = imgui.input_text("Path", self._input_path, 1024)
+            _, self._input_name = imgui.input_text("Name", self._input_name, 40)
             if imgui.button("Create", _BTN_WIDTH) and self._input_name.strip() != "":
                 self._backend.create_new_workspace(Path(self._input_path), self._input_name.strip())
                 self._input_name = ""
-                self._input_path = ""
                 self._hide_ws_create_dialog()
                 self.refresh_data()
             imgui.end_popup()

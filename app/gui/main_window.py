@@ -123,9 +123,12 @@ class MainWindow:
                 if window_postfix != self.__window_title_postfix:
                     self.update_title(postfix=window_postfix)
         else:
-            region = imgui.get_content_region_available()
-            imgui.set_next_window_size(region.x, region.y)
-            imgui.begin("Fullscreen Wnd", False, imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
+            imgui.set_next_window_size(0, 0)
+            imgui.begin(
+                "Fullscreen Wnd",
+                False,
+                imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE,
+            )
             imgui.text(str(self._backend.get_workspace_dir()))
             imgui.end()
 
