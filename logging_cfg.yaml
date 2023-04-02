@@ -16,6 +16,7 @@ handlers:
 
   file:
     class: app.logger.MkdirTimedRotatingFileHandler
+    when: midnight
     level: DEBUG
     formatter: long
     filename: userdata/logs/app.log

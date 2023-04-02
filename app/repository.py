@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from sqlite3 import Error, Connection
-from typing import List, Optional
+from typing import List, Optional, Any, Tuple
 
 from app.model.image_data import ImageData
 from app.model.workspace import Workspace
@@ -35,8 +35,18 @@ class Repository:
         try:
             cur.executescript(SQL_CREATE_WORKSPACE_TABLE)
             cur.executescript(SQL_CREATE_IMAGE_TABLE)
+            cur.connection.commit()
         finally:
             cur.close()
+
+    def __dataclass_to_upsert_query(self, table_name: str, obj: Any) -> Tuple[str, Tuple[Any]]:
+        # Convert the dataclass object to a dictionary
+        workspace_dict = vars(obj)
+
+        column_names = ', '.join(workspace_dict.keys())
+        placeholders = ', '.join('?' * len(workspace_dict))
+        query = f"INSERT OR REPLACE INTO {table_name} ({column_names}) VALUES ({placeholders})"
+        return query, tuple(workspace_dict.values())
 
     # WORKSPACE #
 
@@ -62,16 +72,9 @@ class Repository:
         cur = self.__connection.cursor()
         cur.row_factory = Workspace.row_factory
         try:
-            # Convert the dataclass object to a dictionary
-            workspace_dict = vars(obj)
-
-            # Create an SQL query using the INSERT OR REPLACE command
-            column_names = ', '.join(workspace_dict.keys())
-            placeholders = ', '.join('?' * len(workspace_dict))
-            query = f"INSERT OR REPLACE INTO workspace ({column_names}) VALUES ({placeholders})"
-
-            # Execute the query using the dictionary values
-            cur.execute(query, tuple(workspace_dict.values()))
+            query, values = self.__dataclass_to_upsert_query("workspace", obj)
+            cur.execute(query, values)
+            cur.connection.commit()
             # Retrieve the just inserted record
             cur.execute("SELECT * FROM workspace WHERE rowid=?", (cur.lastrowid,))
             return cur.fetchone()
@@ -82,6 +85,7 @@ class Repository:
         cur = self.__connection.cursor()
         try:
             cur.execute("DELETE FROM workspace WHERE id=?", (id_pk,))
+            cur.connection.commit()
         finally:
             cur.close()
 
@@ -120,16 +124,9 @@ class Repository:
         cur = self.__connection.cursor()
         cur.row_factory = ImageData.row_factory
         try:
-            # Convert the dataclass object to a dictionary
-            image_data_dict = vars(obj)
-
-            # Create an SQL query using the INSERT OR REPLACE command
-            column_names = ', '.join(image_data_dict.keys())
-            placeholders = ', '.join('?' * len(image_data_dict))
-            query = f"INSERT OR REPLACE INTO image_data ({column_names}) VALUES ({placeholders})"
-
-            # Execute the query using the dictionary values
-            cur.execute(query, tuple(image_data_dict.values()))
+            query, values = self.__dataclass_to_upsert_query("image_data", obj)
+            cur.execute(query, values)
+            cur.connection.commit()
             # Retrieve the just inserted record
             cur.execute("SELECT * FROM image_data WHERE rowid=?", (cur.lastrowid,))
             return cur.fetchone()
@@ -140,6 +137,7 @@ class Repository:
         cur = self.__connection.cursor()
         try:
             cur.execute("DELETE FROM image_data WHERE workspace_id=? AND path=?", (workspace_id, path))
+            cur.connection.commit()
         finally:
             cur.close()
 

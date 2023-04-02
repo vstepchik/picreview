@@ -8,6 +8,7 @@ import glfw
 import imgui
 from imgui.integrations.glfw import GlfwRenderer
 
+from app.gui.workspace_selector import WorkspaceSelector
 from app.pic_review import PicReview
 
 _log = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ class MainWindow:
     __show_demo: bool = False
     __show_style_editor: bool = False
     __show_metrics: bool = False
+
+    __workspace_selector: WorkspaceSelector
 
     def __init__(self, window_title: str, backend: PicReview, imgui_ini_file_location: Path = Path("imgui.ini")):
         self.__window_title = window_title
@@ -49,14 +52,10 @@ class MainWindow:
         imgui.get_io().ini_file_name = str(self.__imgui_ini_file_location).encode()
         _log.debug(f"imgui ini file location: {imgui.get_io().ini_file_name}")
         window_renderer = GlfwRenderer(self.__window)
+        self.__workspace_selector = WorkspaceSelector(self._backend)
         _log.debug("GUI init done")
         self.__started = True
 
-        _log.debug("Starting backend")
-        self._backend.set_workspace_dir(Path("C:\\Users\\vital\\AI\\repos\\sygil-webui"))  # todo: use file selector or smth
-        window_postfix = f" :: {self._backend.get_workspace_dir()}" if self._backend.get_workspace_dir() is not None else ""
-        if window_postfix != self.__window_title_postfix:
-            self.update_title(postfix=window_postfix)
         _log.info("Starting GUI")
         while not glfw.window_should_close(self.__window):
             glfw.poll_events()
@@ -116,7 +115,19 @@ class MainWindow:
             imgui.end_main_menu_bar()
 
     def __draw_windows(self):
-        pass
+        if self._backend.get_workspace_dir() is None:
+            self.__workspace_selector.render()
+            ws_path = self._backend.get_workspace_dir()
+            if ws_path is not None:
+                window_postfix = f" :: {ws_path}" if ws_path is not None else ""
+                if window_postfix != self.__window_title_postfix:
+                    self.update_title(postfix=window_postfix)
+        else:
+            region = imgui.get_content_region_available()
+            imgui.set_next_window_size(region.x, region.y)
+            imgui.begin("Fullscreen Wnd", False, imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE)
+            imgui.text(str(self._backend.get_workspace_dir()))
+            imgui.end()
 
     @staticmethod
     def __glfw_init_window(window_title: str):

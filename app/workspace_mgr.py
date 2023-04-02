@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 from datetime import timedelta
@@ -5,6 +6,7 @@ from pathlib import Path
 from time import time
 from typing import Optional
 
+from app.model.workspace import Workspace
 from app.repository import Repository
 
 _log = logging.getLogger(__name__)
@@ -12,29 +14,50 @@ _log = logging.getLogger(__name__)
 
 class WorkspaceManager:
     # todo: watch workspace path and update on changes
-    __workspace_path: Optional[Path] = None
+    __current_workspace: Optional[Workspace] = None
     __repository: Repository
 
     def __init__(self, repo: Repository):
         self.__repository = repo
         _log.info("PicReview backend initialized")
 
-    def get_workspace_dir(self) -> Optional[Path]:
-        return self.__workspace_path
+    def get_current_workspace_dir(self) -> Optional[Workspace]:
+        return Path(self.__current_workspace.path) if self.__current_workspace is not None else None
 
-    def set_workspace_dir(self, path: Path, start_scan: bool = True):
+    def set_workspace_as_current(self, ws_id: Optional[int]):
+        self.__current_workspace = self.__repository.get_workspace(ws_id) if ws_id else None
+        if self.__current_workspace is not None:
+            _log.info(f"New workspace dir: {self.__current_workspace.path}")
+        else:
+            _log.info(f"Workspace closed")
+
+    def create_new_workspace(self, path: Path, name: str, start_scan: bool = True) -> Optional[Workspace]:
         path = path.absolute()
         if not path.is_dir():
             logging.warning(f"{path} is not a directory")
-            return
+            return None
 
-        self.__workspace_path = path
-        _log.info(f"New workspace dir: {path}")
+        ws = Workspace(
+            id=None,
+            name=name,
+            path=str(path),
+            last_used_at=datetime.datetime.now(),
+        )
+        self.__repository.persist_workspace(ws)
         if start_scan:
-            self.scan_workspace()
+            self.scan_current_workspace()
+        return ws
 
-    def scan_workspace(self):
-        ws_path = self.__workspace_path
+    def rm_workspace(self, ws_id: int):
+        if self.__current_workspace is not None and self.__current_workspace.id == ws_id:
+            self.__current_workspace = None
+        self.__repository.rm_workspace(ws_id)
+
+    def scan_current_workspace(self):
+        if self.__current_workspace is None:
+            _log.debug("No workspace - no scan")
+            return
+        ws_path = Path(self.__current_workspace.path)
         if ws_path is None:
             _log.warning("No current workspace set")
             return
@@ -54,7 +77,10 @@ class WorkspaceManager:
     def find_images(scan_path: Path):
         image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff')
         for entry in os.scandir(scan_path):
-            if entry.is_dir():
-                yield from WorkspaceManager.find_images(entry.path)
-            elif entry.is_file() and entry.name.lower().endswith(image_extensions):
-                yield entry.path
+            try:
+                if entry.is_dir():
+                    yield from WorkspaceManager.find_images(entry.path)
+                elif entry.is_file() and entry.name.lower().endswith(image_extensions):
+                    yield entry.path
+            except PermissionError:
+                _log.debug(f"No permission to read {entry} - skipping")
