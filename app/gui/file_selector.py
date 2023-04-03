@@ -14,6 +14,7 @@ class FileSelector:
     _root: Path
     _roots: List[Path] = []
     _cache: Dict[Path, Dict] = {}
+    _initial_selection: Path
     filter_predicate: Callable[[Path], bool]
     selection: Path
     selection_updated: bool
@@ -21,13 +22,14 @@ class FileSelector:
     def __init__(
             self,
             root: Path = Path(os.path.sep),
-            selected: Path = Path().absolute(),
+            selected: Path = Path.home().absolute(),
             filter_predicate: Callable[[Path], bool] = lambda _: True,
     ):
         self._root = root
         self._refresh_roots()
         self.filter_predicate = filter_predicate
         self.selection = selected
+        self._initial_selection = selected
         self.selection_updated = True
         self._cache = {}
 
@@ -50,9 +52,13 @@ class FileSelector:
     def _render_tree(self, current_path: Path, items: Dict[Path, dict]):
         for k, v in items.items():
             this_path_level = current_path.joinpath(k)
-            selection_flag = imgui.TREE_NODE_SELECTED if self.selection == k.absolute() else 0
+            tree_node_flags = _TREE_FLAGS
+            if self.selection == k.absolute():
+                tree_node_flags |= imgui.TREE_NODE_SELECTED
+            if self._initial_selection.is_relative_to(this_path_level):
+                tree_node_flags |= imgui.TREE_NODE_DEFAULT_OPEN
             if k.is_dir():
-                node = imgui.tree_node(k.name, _TREE_FLAGS | selection_flag)
+                node = imgui.tree_node(k.name, tree_node_flags)
                 node_clicked = imgui.is_item_clicked()
                 if node:
                     if v is None:
@@ -63,7 +69,7 @@ class FileSelector:
                         self._render_tree(this_path_level, v)
                     imgui.tree_pop()
             else:
-                node = imgui.tree_node(k.name, _TREE_FLAGS | imgui.TREE_NODE_LEAF | selection_flag)
+                node = imgui.tree_node(k.name, tree_node_flags)
                 node_clicked = imgui.is_item_clicked()
                 if node:
                     imgui.tree_pop()
