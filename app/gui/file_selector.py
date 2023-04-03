@@ -52,7 +52,9 @@ class FileSelector:
             this_path_level = current_path.joinpath(k)
             selection_flag = imgui.TREE_NODE_SELECTED if self.selection == k.absolute() else 0
             if k.is_dir():
-                if imgui.tree_node(k.name, _TREE_FLAGS | selection_flag):
+                node = imgui.tree_node(k.name, _TREE_FLAGS | selection_flag)
+                node_clicked = imgui.is_item_clicked()
+                if node:
                     if v is None:
                         entries = self._fill_entries(this_path_level)
                         items[k] = entries
@@ -61,16 +63,21 @@ class FileSelector:
                         self._render_tree(this_path_level, v)
                     imgui.tree_pop()
             else:
-                if imgui.tree_node(k.name, _TREE_FLAGS | imgui.TREE_NODE_LEAF | selection_flag):
+                node = imgui.tree_node(k.name, _TREE_FLAGS | imgui.TREE_NODE_LEAF | selection_flag)
+                node_clicked = imgui.is_item_clicked()
+                if node:
                     imgui.tree_pop()
-            if imgui.is_item_clicked():
+            if node_clicked:
+                _log.debug(f"Selection change: {self.selection} -> {k.absolute()}")
                 self.selection = k.absolute()
                 self.selection_updated = True
-                _log.debug(f"New selection: {self.selection}")
 
     def _fill_entries(self, scan_path: Path) -> Dict[Path, Dict]:
         try:
-            return {Path(entry.path): None for entry in os.scandir(scan_path) if self.filter_predicate(Path(entry.path))}
+            paths = [Path(e.path) for e in os.scandir(scan_path) if self.filter_predicate(Path(e.path))]
+            # sort dirs first, then names case-insensitive
+            paths = sorted(paths, key=lambda p: (not p.is_dir(), p.name.lower()))
+            return {p: None for p in paths}
         except PermissionError:
             _log.debug(f"No permission to traverse {scan_path}")
             return {}
