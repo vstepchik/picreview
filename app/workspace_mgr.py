@@ -1,11 +1,14 @@
 import datetime
 import logging
 import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 from pathlib import Path
 from time import time
 from typing import Optional
 
+import PIL.Image
+
+from app.model.image_data import ImageData
 from app.model.workspace import Workspace
 from app.repository import Repository
 
@@ -72,6 +75,28 @@ class WorkspaceManager:
         t = time()
         image_files = sorted(set(WorkspaceManager.find_images(ws_path)))
         _log.info(f"{len(image_files)} images found in workspace in {timedelta(seconds=time() - t)}")
+
+    def import_image(self, ws_id: int, path: Path) -> Optional[ImageData]:
+        try:
+            img: PIL.Image = PIL.Image.open(path)
+            stats = path.stat()
+            img_w, img_h = img.size
+        except FileNotFoundError:
+            _log.info(f"File {path} not found")
+            return None
+        except PIL.UnidentifiedImageError as e:
+            _log.error(f"Couldn't open image {path}", e)
+            return None
+
+        return ImageData(
+            workspace_id=ws_id,
+            path=str(path),
+            size=stats.st_size,
+            last_updated_at=datetime.fromtimestamp(stats.st_mtime_ns / 1e9),
+            width=img_w,
+            height=img_h,
+            rank=0,
+        ).with_populated_thumbnail()
 
     @staticmethod
     def find_images(scan_path: Path):
