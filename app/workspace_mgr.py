@@ -4,7 +4,7 @@ import os
 from datetime import timedelta, datetime
 from pathlib import Path
 from time import time
-from typing import Optional
+from typing import Optional, List, Set
 
 import PIL.Image
 
@@ -56,7 +56,32 @@ class WorkspaceManager:
             self.__current_workspace = None
         self.__repository.rm_workspace(ws_id)
 
-    def scan_current_workspace(self):
+    def refresh_current_workspace(self):
+        if self.__current_workspace is None:
+            _log.info("No workspace - do nothing")
+            return
+        ws_id = self.__current_workspace.id
+        image_paths_found = self.scan_current_workspace()
+        image_paths_found_set = set(image_paths_found)
+        image_data_in_db = self.__repository.get_all_images_for_workspace(workspace_id=ws_id)
+        image_paths_in_db_set = set(Path(imd.path) for imd in image_data_in_db)
+
+        new_image_paths = image_paths_found_set - image_paths_in_db_set
+        _log.info(f"Found {len(new_image_paths)} new images")
+        deleted_image_paths = image_paths_in_db_set - image_paths_found_set
+        _log.info(f"Detected {len(deleted_image_paths)} images are no longer exist")
+        still_existing_images = image_paths_found_set.intersection(image_paths_in_db_set)
+        updated_images: Set[ImageData] = set()
+        for db_img in image_data_in_db:
+            img_path = Path(db_img.path)
+            if img_path in still_existing_images \
+                    and datetime.fromtimestamp(img_path.stat().st_mtime_ns / 1e9) > db_img.last_updated_at:
+                updated_images += db_img
+        _log.info(f"Detected {len(updated_images)} images were updated")
+
+        # todo: return changeset struct + tests, then delete, update, import, sort, persist
+
+    def scan_current_workspace(self) -> Optional[List[Path]]:
         if self.__current_workspace is None:
             _log.debug("No workspace - no scan")
             return
@@ -73,10 +98,14 @@ class WorkspaceManager:
 
         _log.info(f"Scanning workspace...")
         t = time()
-        image_files = sorted(set(WorkspaceManager.find_images(ws_path)))
+        image_files: List[Path] = sorted(set(WorkspaceManager.find_images(ws_path)))
         _log.info(f"{len(image_files)} images found in workspace in {timedelta(seconds=time() - t)}")
+        return image_files
 
-    def import_image(self, ws_id: int, path: Path) -> Optional[ImageData]:
+    def import_image(self, path: Path) -> Optional[ImageData]:
+        if self.__current_workspace is None:
+            return None
+        ws_id = self.__current_workspace.id
         try:
             img: PIL.Image = PIL.Image.open(path)
             stats = path.stat()
