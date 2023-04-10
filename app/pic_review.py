@@ -21,9 +21,9 @@ class PicReview:
     def get_workspace_dir(self) -> Optional[Path]:
         return self.__workspace_manager.get_current_workspace_dir()
 
-    def create_new_workspace(self, path: Path, name: str, start_scan: bool = True) -> Optional[Workspace]:
+    def create_new_workspace(self, path: Path, name: str, set_current: bool = True) -> Optional[Workspace]:
         _log.debug(f"Adding workspace name: {name}, path: {path}")
-        return self.__workspace_manager.create_new_workspace(path=path, name=name, start_scan=start_scan)
+        return self.__workspace_manager.create_new_workspace(path=path, name=name, set_current=set_current)
 
     def set_workspace_as_current(self, ws_id: int):
         self.__workspace_manager.set_workspace_as_current(ws_id)

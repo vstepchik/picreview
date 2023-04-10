@@ -39,7 +39,8 @@ class Repository:
         finally:
             cur.close()
 
-    def __dataclass_to_upsert_query(self, table_name: str, obj: Any) -> Tuple[str, Tuple[Any]]:
+    @staticmethod
+    def _dataclass_to_upsert_query(table_name: str, obj: Any) -> Tuple[str, Tuple[Any]]:
         # Convert the dataclass object to a dictionary
         workspace_dict = vars(obj)
 
@@ -72,7 +73,7 @@ class Repository:
         cur = self.__connection.cursor()
         cur.row_factory = Workspace.row_factory
         try:
-            query, values = self.__dataclass_to_upsert_query("workspace", obj)
+            query, values = self._dataclass_to_upsert_query("workspace", obj)
             cur.execute(query, values)
             cur.connection.commit()
             # Retrieve the just inserted record
@@ -110,7 +111,7 @@ class Repository:
         finally:
             cur.close()
 
-    def is_image_outdated(self, workspace_id: int, path: str, last_updated_at: datetime) -> Optional[ImageData]:
+    def is_image_outdated(self, workspace_id: int, path: str, last_updated_at: datetime) -> bool:
         cur = self.__connection.cursor()
         cur.row_factory = ImageData.row_factory
         try:
@@ -124,7 +125,7 @@ class Repository:
         cur = self.__connection.cursor()
         cur.row_factory = ImageData.row_factory
         try:
-            query, values = self.__dataclass_to_upsert_query("image_data", obj)
+            query, values = self._dataclass_to_upsert_query("image_data", obj)
             cur.execute(query, values)
             cur.connection.commit()
             # Retrieve the just inserted record
