@@ -1,8 +1,10 @@
 import dataclasses
 import datetime
 import unittest
+from collections import defaultdict
 from pathlib import Path
 from sqlite3 import IntegrityError
+from typing import Dict
 
 from app.model.image_data import ImageData
 from app.model.workspace import Workspace
@@ -362,6 +364,83 @@ class RepositoryTests(unittest.TestCase):
         self.assertTrue(self.repo.is_image_outdated(img.workspace_id, f"{img.path}-not-exists", now - one_microsecond))
         self.assertTrue(self.repo.is_image_outdated(img.workspace_id, f"{img.path}-not-exists", now))
         self.assertTrue(self.repo.is_image_outdated(img.workspace_id, f"{img.path}-not-exists", now + one_microsecond))
+
+    def test_image_rank_histogram_can_be_computed(self):
+        now = datetime.datetime.now()
+        ws = self.repo.persist_workspace(Workspace(
+            id=None,
+            name="test-workspace-image-rank-histogram",
+            path="foo/bar",
+            last_used_at=now,
+        ))
+        rank_counts: Dict[int, int] = defaultdict(int)
+        for i in range(137):
+            rank = i % 13
+            rank_counts[rank] += 1
+            self.repo.persist_image(ImageData(
+                workspace_id=ws.id,
+                path=f"image-{i}-rank-{rank}",
+                size=321,
+                last_updated_at=now,
+                width=640,
+                height=480,
+                rank=rank,
+                thumbnail=None,
+            ))
+        self.assertDictEqual(rank_counts, self.repo.get_image_rank_histogram(ws.id))
+
+    def test_image_rank_histogram_accounts_for_workspace_id(self):
+        now = datetime.datetime.now()
+        ws1 = self.repo.persist_workspace(Workspace(
+            id=None,
+            name="test-workspace-image-rank-histogram-1",
+            path="foo/bar",
+            last_used_at=now,
+        ))
+        ws1_images = 15
+        ws2 = self.repo.persist_workspace(Workspace(
+            id=None,
+            name="test-workspace-image-rank-histogram-2",
+            path="foo/bar",
+            last_used_at=now,
+        ))
+        ws2_images = 12
+        for i in range(ws1_images):
+            self.repo.persist_image(ImageData(
+                workspace_id=ws1.id,
+                path=f"image-{i}-rank-{0}",
+                size=321,
+                last_updated_at=now,
+                width=640,
+                height=480,
+                rank=0,
+                thumbnail=None,
+            ))
+        for i in range(ws2_images):
+            self.repo.persist_image(ImageData(
+                workspace_id=ws2.id,
+                path=f"image-{i}-rank-{0}",
+                size=321,
+                last_updated_at=now,
+                width=640,
+                height=480,
+                rank=0,
+                thumbnail=None,
+            ))
+        self.assertDictEqual({0: ws1_images}, self.repo.get_image_rank_histogram(ws1.id))
+        self.assertDictEqual({0: ws2_images}, self.repo.get_image_rank_histogram(ws2.id))
+
+    def test_image_rank_histogram_can_be_generated_for_empty_workspace_and_is_empty(self):
+        ws = self.repo.persist_workspace(Workspace(
+            id=None,
+            name="test-workspace-image-rank-histogram",
+            path="foo/bar",
+            last_used_at=datetime.datetime.now(),
+        ))
+        self.assertDictEqual({}, self.repo.get_image_rank_histogram(ws.id))
+
+    def test_image_rank_histogram_can_be_generated_for_non_existing_workspace_and_is_empty(self):
+        self.assertDictEqual({}, self.repo.get_image_rank_histogram(2128506))
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
 import datetime
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta, datetime
 from pathlib import Path
 from time import time
-from typing import Optional, List, Set
+from typing import Optional, List, Set, Dict
 
 from app.model.image_data import ImageData
 from app.model.workspace import Workspace
@@ -22,7 +22,6 @@ class WorkspaceManager:
     @dataclass(frozen=True)
     class WorkspaceRescanDelta:
         files_missing: List[Path]
-        files_added: List[Path]
         files_updated: List[Path]
 
     def __init__(self, repo: Repository):
@@ -71,42 +70,44 @@ class WorkspaceManager:
             _log.info("No workspace - do nothing")
             return
         ws_id = self.__current_workspace.id
-        delta = self.rescan_current_workspace_and_get_delta()
-        _log.info(f"Scan results: +{len(delta.files_added)} -{len(delta.files_missing)} *{len(delta.files_updated)}")
+        delta = self._rescan_current_workspace_and_get_delta()
+        _log.info(f"Scan results: -{len(delta.files_missing)} +{len(delta.files_updated)}")
 
-        for f in delta.files_added + delta.files_updated:
+        for f in delta.files_updated:
             img_data = ImageData.from_file(workspace_id=ws_id, path=f)
+            existing_image = self.__repository.get_image(ws_id, str(f))
+            if existing_image is not None:  # keep image rank if the image already existed in the workspace
+                img_data = replace(img_data, rank=existing_image.rank)
             self.__repository.persist_image(img_data)
         for f in delta.files_missing:
             self.__repository.rm_image(workspace_id=ws_id, path=str(f))
 
-    def rescan_current_workspace_and_get_delta(self) -> Optional[WorkspaceRescanDelta]:
+    def _rescan_current_workspace_and_get_delta(self) -> Optional[WorkspaceRescanDelta]:
         if self.__current_workspace is None:
             _log.info("No workspace - no delta")
             return
         ws_id = self.__current_workspace.id
-        image_paths_found = self._scan_current_workspace()
-        image_paths_found_set = set(image_paths_found)
-        image_data_in_db = self.__repository.get_all_images_for_workspace(workspace_id=ws_id)
-        image_paths_in_db_set = set(Path(imd.path) for imd in image_data_in_db)
-
-        new_image_paths = image_paths_found_set - image_paths_in_db_set
-        _log.debug(f"Found {len(new_image_paths)} new images")
-        missing_image_paths = image_paths_in_db_set - image_paths_found_set
-        _log.debug(f"Detected {len(missing_image_paths)} images are no longer exist")
-        still_existing_images = image_paths_found_set.intersection(image_paths_in_db_set)
-        updated_images: Set[ImageData] = set()
-        for db_img in image_data_in_db:
-            img_path = Path(db_img.path)
-            if img_path in still_existing_images \
-                    and datetime.fromtimestamp(img_path.stat().st_mtime_ns / 1e9) > db_img.last_updated_at:
-                updated_images += db_img
-        _log.debug(f"Detected {len(updated_images)} images were updated")
+        image_paths_found: List[Path] = self._scan_current_workspace()
+        image_data_in_db: List[ImageData] = self.__repository.get_all_images_for_workspace(workspace_id=ws_id)
+        unprocessed_paths_in_workspace: Dict[Path, ImageData] = {
+            Path(i.path): i for i in image_data_in_db
+        }
+        updated_image_paths: Set[Path] = set()
+        for img_path in image_paths_found:
+            i = ImageData.from_file(img_path, ws_id, with_thumbnail=False)
+            if i is None:
+                _log.warning(f"Image found but could not be read: {img_path}")
+            elif self.__repository.is_image_outdated(ws_id, str(img_path), i.last_updated_at):
+                _log.info(f"Found updated image: {img_path}")
+                updated_image_paths.add(img_path)
+                unprocessed_paths_in_workspace.pop(img_path, None)
+            else:
+                _log.debug(f"Image {img_path} is up to date")
+                unprocessed_paths_in_workspace.pop(img_path, None)
 
         return WorkspaceManager.WorkspaceRescanDelta(
-            files_missing=sorted(Path(p) for p in missing_image_paths),
-            files_added=sorted(Path(p) for p in new_image_paths),
-            files_updated=sorted(Path(i.path) for i in updated_images),
+            files_missing=sorted(Path(p) for p in unprocessed_paths_in_workspace.keys()),
+            files_updated=sorted(Path(p) for p in updated_image_paths),
         )
 
     def _scan_current_workspace(self) -> Optional[List[Path]]:
@@ -126,7 +127,7 @@ class WorkspaceManager:
 
         _log.info(f"Scanning workspace...")
         t = time()
-        image_files: List[Path] = sorted(set(WorkspaceManager._find_images(ws_path)))
+        image_files: List[Path] = sorted(Path(p) for p in set(WorkspaceManager._find_images(ws_path)))
         _log.info(f"{len(image_files)} images found in workspace in {timedelta(seconds=time() - t)}")
         return image_files
 

@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from sqlite3 import Error, Connection
-from typing import List, Optional, Any, Tuple
+from typing import List, Optional, Any, Tuple, Dict
 
 from app.model.image_data import ImageData
 from app.model.workspace import Workspace
@@ -96,6 +96,7 @@ class Repository:
         cur = self.__connection.cursor()
         cur.row_factory = ImageData.row_factory
         try:
+            # * performance optimization opportunity: don't load thumbs when not needed
             query = "SELECT * FROM image_data WHERE workspace_id=? ORDER BY workspace_id ASC, path ASC"
             cur.execute(query, (workspace_id,))
             return cur.fetchall()
@@ -139,6 +140,20 @@ class Repository:
         try:
             cur.execute("DELETE FROM image_data WHERE workspace_id=? AND path=?", (workspace_id, path))
             cur.connection.commit()
+        finally:
+            cur.close()
+
+    def get_image_rank_histogram(self, workspace_id: int) -> Dict[int, int]:
+        """
+        Returns counts of images in every rank in the workspace (key is rank, value is count).
+        """
+        cur = self.__connection.cursor()
+        try:
+            cur.execute(
+                "SELECT rank, COUNT(*) as count FROM image_data WHERE workspace_id=? GROUP BY rank ORDER BY rank ASC",
+                (workspace_id,),
+            )
+            return dict(cur.fetchall())
         finally:
             cur.close()
 

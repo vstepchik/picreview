@@ -4,56 +4,45 @@ import unittest
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch, ANY, call
 
 from PIL import Image
 
-from app.model.image_data import ImageData
-from app.model.workspace import Workspace
 from app.repository import Repository
 from app.workspace_mgr import WorkspaceManager
 
 
-class WorkspaceManagerTests(unittest.TestCase):
+# It is integration test - uses real repo and fs
+class WorkspaceManagerIntegrationTests(unittest.TestCase):
     test_dir: Path
-    repo_mock: MagicMock
+    repo: Repository
 
     mgr: WorkspaceManager
 
     def setUp(self) -> None:
         self.test_dir = Path(tempfile.mkdtemp(prefix="picreview_test_"))
-        self.repo_mock = MagicMock(spec=Repository)
-        self.mgr = WorkspaceManager(repo=self.repo_mock)
+        self.repo = Repository(db_file=Path(":memory:"))
+        self.mgr = WorkspaceManager(repo=self.repo)
 
     def tearDown(self) -> None:
         shutil.rmtree(self.test_dir)
 
-    def mk_tmp_img(self, img_relative_path: Path):
+    def mk_img_file(self, img_relative_path: Path):
         img = Image.new('RGB', (8, 8), color='white')
         img.save(self.test_dir.joinpath(img_relative_path))
 
     def test_workspace_is_created_in_empty_dir(self):
-        fixed_now = datetime.now()
-        expected_workspace = Workspace(
-            id=None,
-            name="empty test workspace",
-            path=str(self.test_dir),
-            last_used_at=fixed_now,
-        )
-        expected_persisted_workspace = replace(expected_workspace, id=1)
-        self.repo_mock.persist_workspace.return_value = expected_persisted_workspace
+        timestamp_before_create = datetime.now()
+        result = self.mgr.create_new_workspace(path=self.test_dir, name="empty test workspace", set_current=True)
+        timestamp_after_create = datetime.now()
 
-        with patch('app.workspace_mgr.datetime') as mock_datetime:
-            mock_datetime.now.return_value = fixed_now
-            self.mgr.create_new_workspace(path=self.test_dir, name="empty test workspace", set_current=True)
-
-        self.repo_mock.persist_workspace.assert_called_once_with(expected_workspace)
         self.assertEqual(self.test_dir, self.mgr.get_current_workspace_dir())
-        self.assertEqual(expected_persisted_workspace, self.mgr.current_workspace)
-        self.repo_mock.persist_image.assert_not_called()
+        self.assertEqual("empty test workspace", self.mgr.current_workspace.name)
+        self.assertEqual(self.repo.get_workspace(result.id), self.mgr.current_workspace)
+        self.assertEqual([], self.repo.get_all_images_for_workspace(result.id))
+        self.assertTrue(timestamp_before_create <= result.last_used_at <= timestamp_after_create)
 
     def test_workspace_is_created_in_dir_hierarchy_with_nested_images(self):
-        fixed_now = datetime.now()
+        timestamp_test_start = datetime.now()
         image_paths = [
             "ws_root.png",
             "a/1.png",
@@ -71,38 +60,77 @@ class WorkspaceManagerTests(unittest.TestCase):
         for d in [p.split("/") for p in ["a/a/a", "a/b", "a/c/a/a/a/a/a", "a/c/b"]]:
             self.test_dir.joinpath(*d).mkdir(parents=True, exist_ok=True)
         for i in [Path(*p.split("/")) for p in image_paths]:
-            self.mk_tmp_img(i)
-        self.test_dir.joinpath(*"a/a.txt".split("/")).write_text("hi")
+            self.mk_img_file(i)
+        self.test_dir.joinpath(*"a/a.txt".split("/")).write_text("hi")  # should be ignored
 
-        expected_workspace = Workspace(
-            id=None,
-            name="test WS with nested images",
-            path=str(self.test_dir),
-            last_used_at=fixed_now,
-        )
-        expected_persisted_workspace = replace(expected_workspace, id=5)
-        self.repo_mock.persist_workspace.return_value = expected_persisted_workspace
+        timestamp_before_create = datetime.now()
+        result = self.mgr.create_new_workspace(path=self.test_dir, name="test WS with nested images", set_current=True)
+        timestamp_after_create = datetime.now()
 
-        with patch('app.workspace_mgr.datetime') as mock_datetime:
-            mock_datetime.now.return_value = fixed_now
-            self.mgr.create_new_workspace(path=self.test_dir, name="test WS with nested images", set_current=True)
-
-        self.repo_mock.persist_workspace.assert_called_once_with(expected_workspace)
         self.assertEqual(self.test_dir, self.mgr.get_current_workspace_dir())
-        self.assertEqual(expected_persisted_workspace, self.mgr.current_workspace)
+        self.assertEqual("test WS with nested images", self.mgr.current_workspace.name)
+        self.assertEqual(self.repo.get_workspace(result.id), self.mgr.current_workspace)
+        self.assertTrue(timestamp_before_create <= result.last_used_at <= timestamp_after_create)
 
-        expected_image = ImageData(
-            workspace_id=expected_persisted_workspace.id,
-            path=ANY,
-            size=ANY,
-            last_updated_at=ANY,
-            width=8,
-            height=8,
-            rank=0,
-            thumbnail=ANY,
-        )
-        calls = [call(replace(expected_image, path=str(self.test_dir.joinpath(*p.split("/"))))) for p in image_paths]
-        self.repo_mock.persist_image.assert_has_calls(calls, any_order=True)
+        images_in_db = self.repo.get_all_images_for_workspace(result.id)
+        image_paths = set(self.test_dir.joinpath(i) for i in image_paths)
+        self.assertSetEqual(image_paths, set(Path(i.path) for i in images_in_db))
+        for i in images_in_db:
+            self.assertTrue(i.workspace_id == result.id)
+            self.assertTrue(i.size == Path(i.path).stat().st_size)
+            self.assertTrue(i.width == 8 and i.height == 8)
+            self.assertTrue(i.rank == 0)
+            self.assertTrue(i.thumbnail)
+            self.assertTrue(timestamp_test_start <= i.last_updated_at <= timestamp_before_create)
+
+    def test_changes_in_workspace_are_detected_on_refresh(self):
+        timestamp_test_start = datetime.now()
+        image_paths = [self.test_dir.joinpath(p) for p in ["a.png", "b.png", "c.png"]]
+        for i in image_paths:
+            self.mk_img_file(i)
+
+        timestamp_before_ws_created = datetime.now()
+        ws = self.mgr.create_new_workspace(path=self.test_dir, name="test WS refresh detects", set_current=True)
+
+        db_images = self.repo.get_all_images_for_workspace(ws.id)
+        self.assertSetEqual(set(image_paths), set(Path(i.path) for i in db_images))
+        self.assertTrue(
+            all(timestamp_test_start <= i.last_updated_at <= timestamp_before_ws_created for i in db_images))
+        images_before_refresh = {Path(i.path).name: i for i in db_images}
+
+        # d.png - new, c.png - deleted, a.png - updated
+        self.mk_img_file(self.test_dir.joinpath("d.png"))
+        self.test_dir.joinpath("c.png").unlink()
+        self.mk_img_file(self.test_dir.joinpath("a.png"))
+
+        self.mgr.refresh_current_workspace()
+
+        db_images = self.repo.get_all_images_for_workspace(ws.id)
+        image_paths = [self.test_dir.joinpath(p) for p in ["a.png", "b.png", "d.png"]]
+        self.assertSetEqual(set(image_paths), set(Path(i.path) for i in db_images))
+        images_after_refresh = {Path(i.path).name: i for i in db_images}
+        self.assertEqual(images_before_refresh["b.png"].last_updated_at, images_after_refresh["b.png"].last_updated_at)
+        self.assertTrue(images_before_refresh["a.png"].last_updated_at < images_after_refresh["a.png"].last_updated_at)
+
+    def test_updated_image_rank_is_persisted_on_refresh(self):
+        image_path = self.test_dir.joinpath("img.png")
+        self.mk_img_file(image_path)
+
+        ws = self.mgr.create_new_workspace(path=self.test_dir, name="test", set_current=True)
+
+        db_images = self.repo.get_all_images_for_workspace(ws.id)
+        self.assertEqual(1, len(db_images))
+        db_image = db_images[0]
+        self.assertEqual(0, db_image.rank)
+
+        persisted_image = self.repo.persist_image(replace(db_image, rank=5))
+        self.assertEqual(5, persisted_image.rank)
+
+        self.mk_img_file(image_path)  # update the file
+        self.mgr.refresh_current_workspace()
+        db_image_after_refresh = self.repo.get_image(ws.id, db_image.path)
+        self.assertTrue(db_image_after_refresh.last_updated_at > db_image.last_updated_at)
+        self.assertEqual(5, db_image_after_refresh.rank)
 
 
 if __name__ == "__main__":
