@@ -26,7 +26,7 @@ class ImageData:
     height: int
 
     rank: int
-    thumbnail: Optional[bytes] = field(compare=False, hash=False, default=None)
+    thumbnail: Optional[bytes] = field(compare=False, hash=False, repr=False, default=None)
 
     @property
     def dimensions(self):
