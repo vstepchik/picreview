@@ -76,12 +76,13 @@ class WorkspaceManagerIntegrationTests(unittest.TestCase):
         image_paths = set(self.test_dir.joinpath(i) for i in image_paths)
         self.assertSetEqual(image_paths, set(Path(i.path) for i in images_in_db))
         for i in images_in_db:
-            self.assertTrue(i.workspace_id == result.id)
-            self.assertTrue(i.size == Path(i.path).stat().st_size)
-            self.assertTrue(i.width == 8 and i.height == 8)
-            self.assertTrue(i.rank == 0)
-            self.assertTrue(i.thumbnail)
-            self.assertTrue(timestamp_test_start <= i.last_updated_at <= timestamp_before_create)
+            msg = f"Failed on {i}, test start at {timestamp_test_start}, ws created after {timestamp_before_create}"
+            self.assertTrue(i.workspace_id == result.id, msg=msg)
+            self.assertTrue(i.size == Path(i.path).stat().st_size, msg=msg)
+            self.assertTrue(i.width == 8 and i.height == 8, msg=msg)
+            self.assertTrue(i.rank == 0, msg=msg)
+            self.assertTrue(i.thumbnail, msg=msg)
+            self.assertTrue(timestamp_test_start <= i.last_updated_at <= timestamp_before_create, msg=msg)
 
     def test_changes_in_workspace_are_detected_on_refresh(self):
         timestamp_test_start = datetime.now()
