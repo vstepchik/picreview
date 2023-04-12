@@ -156,10 +156,14 @@ class WorkspaceManagerIntegrationTests(unittest.TestCase):
         persisted_image = self.repo.persist_image(replace(db_image, rank=5))
         self.assertEqual(5, persisted_image.rank)
 
+        self.wait()
         self.mk_img_file(image_path)  # update the file
         self.mgr.refresh_current_workspace()
         db_image_after_refresh = self.repo.get_image(ws.id, db_image.path)
-        self.assertTrue(db_image_after_refresh.last_updated_at > db_image.last_updated_at)
+        self.assertTrue(
+            db_image_after_refresh.last_updated_at > db_image.last_updated_at,
+            f"time difference is {db_image_after_refresh.last_updated_at - db_image.last_updated_at}",
+        )
         self.assertEqual(5, db_image_after_refresh.rank)
 
 
