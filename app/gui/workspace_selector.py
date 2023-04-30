@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, List
 
 import imgui
-
 from app.gui.file_selector import FileSelector
 from app.model.workspace import Workspace
 from app.pic_review import PicReview
@@ -15,13 +14,13 @@ _BTN_WIDTH = 80
 class WorkspaceSelector:
     _backend: PicReview
 
+    _selected_ws_id: Optional[int] = None
     # create modal
     _input_path: str = ""
     _input_name: str = ""
     _show_create_dialog: bool = False
     _file_selector: FileSelector = FileSelector(filter_predicate=lambda path: path.is_dir())
     # delete modal
-    _selected_ws_id: Optional[int] = None
     _show_delete_ws_id: Optional[int] = None
 
     _workspaces: List[Workspace] = []
@@ -33,6 +32,8 @@ class WorkspaceSelector:
     def refresh_data(self):
         _log.debug("Refreshing workspaces")
         self._workspaces = self._backend.get_workspaces()
+        if len(self._workspaces) > 0:
+            self._selected_ws_id = self._workspaces[0].id
 
     def render(self):
         w, h = imgui.get_io().display_size

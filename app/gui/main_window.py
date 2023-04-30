@@ -6,10 +6,9 @@ from typing import Optional
 import OpenGL.GL as GL
 import glfw
 import imgui
-from imgui.integrations.glfw import GlfwRenderer
-
 from app.gui.workspace_selector import WorkspaceSelector
 from app.pic_review import PicReview
+from imgui.integrations.glfw import GlfwRenderer
 
 _log = logging.getLogger(__name__)
 
@@ -124,13 +123,12 @@ class MainWindow:
                     self.update_title(postfix=window_postfix)
         else:
             imgui.set_next_window_size(0, 0)
-            imgui.begin(
+            with imgui.begin(
                 "Fullscreen Wnd",
                 False,
                 imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE,
-            )
-            imgui.text(str(self._backend.get_workspace_dir()))
-            imgui.end()
+            ):
+                imgui.text(str(self._backend.get_workspace_dir()))
 
     @staticmethod
     def __glfw_init_window(window_title: str):
