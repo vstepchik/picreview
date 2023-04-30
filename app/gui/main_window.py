@@ -6,9 +6,12 @@ from typing import Optional
 import OpenGL.GL as GL
 import glfw
 import imgui
+from imgui.integrations.glfw import GlfwRenderer
+
+from app.gui.image_view_window import ImageViewWindow
+from app.gui.navigator_window import NavigatorWindow
 from app.gui.workspace_selector import WorkspaceSelector
 from app.pic_review import PicReview
-from imgui.integrations.glfw import GlfwRenderer
 
 _log = logging.getLogger(__name__)
 
@@ -17,7 +20,7 @@ class MainWindow:
     _backend: PicReview
     __window_title: str
     __window_title_postfix: str = ""
-    __imgui_ini_file_location: Path
+    __imgui_ini_file_location: str
     __window = None
 
     __started: bool = False
@@ -27,10 +30,12 @@ class MainWindow:
     __show_metrics: bool = False
 
     __workspace_selector: WorkspaceSelector
+    __navigator_window: NavigatorWindow
+    __image_view_window: ImageViewWindow
 
     def __init__(self, window_title: str, backend: PicReview, imgui_ini_file_location: Path = Path("imgui.ini")):
         self.__window_title = window_title
-        self.__imgui_ini_file_location = imgui_ini_file_location.absolute()
+        self.__imgui_ini_file_location = str(imgui_ini_file_location.absolute())
         self._backend = backend
 
     def update_title(self, title: Optional[str] = None, postfix: Optional[str] = None):
@@ -48,10 +53,13 @@ class MainWindow:
         _log.info("Initializing GUI")
         self.__window = MainWindow.__glfw_init_window(self.__window_title)
         imgui.create_context()
-        imgui.get_io().ini_file_name = str(self.__imgui_ini_file_location).encode()
+        io = imgui.get_io()
+        io.ini_file_name = self.__imgui_ini_file_location
         _log.debug(f"imgui ini file location: {imgui.get_io().ini_file_name}")
         window_renderer = GlfwRenderer(self.__window)
         self.__workspace_selector = WorkspaceSelector(self._backend)
+        self.__navigator_window = NavigatorWindow(self._backend)
+        self.__image_view_window = ImageViewWindow(self._backend)
         _log.debug("GUI init done")
         self.__started = True
 
@@ -122,13 +130,8 @@ class MainWindow:
                 if window_postfix != self.__window_title_postfix:
                     self.update_title(postfix=window_postfix)
         else:
-            imgui.set_next_window_size(0, 0)
-            with imgui.begin(
-                "Fullscreen Wnd",
-                False,
-                imgui.WINDOW_NO_TITLE_BAR | imgui.WINDOW_NO_RESIZE | imgui.WINDOW_NO_MOVE,
-            ):
-                imgui.text(str(self._backend.get_workspace_dir()))
+            self.__navigator_window.render()
+            self.__image_view_window.render()
 
     @staticmethod
     def __glfw_init_window(window_title: str):

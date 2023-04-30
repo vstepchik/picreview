@@ -32,12 +32,16 @@ class ImageData:
     def dimensions(self):
         return self.width, self.height
 
-    def with_populated_thumbnail(self, thumb_max_size: Tuple[int, int] | int = 128) -> Self:
+    def with_populated_thumbnail(self, thumb_max_size: Tuple[int, int] | int = 64, force_reload: bool = False) -> Self:
         assert type(thumb_max_size) is int \
                or type(thumb_max_size) is tuple, f"thumbnail max size has wrong type: {type(thumb_max_size)}"
         thumb_size = (thumb_max_size, thumb_max_size) if type(thumb_max_size) is int else thumb_max_size
         assert thumb_size[0] > 0, "thumbnail width must be > 0"
         assert thumb_size[1] > 0, "thumbnail height must be > 0"
+
+        if not force_reload and self.thumbnail is not None:
+            return self
+
         try:
             with PIL.Image.open(self.path) as img:
                 img.thumbnail(thumb_size)

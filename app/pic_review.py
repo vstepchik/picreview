@@ -1,7 +1,8 @@
 import logging
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 
+from app.model.image_data import ImageData
 from app.model.workspace import Workspace
 from app.repository import Repository
 from app.workspace_mgr import WorkspaceManager
@@ -30,6 +31,21 @@ class PicReview:
 
     def is_workspace_selected(self) -> bool:
         return self.__workspace_manager.get_current_workspace_dir() is not None
+
+    def get_current_workspace(self) -> Optional[Workspace]:
+        return self.__workspace_manager.current_workspace
+
+    def get_current_workspace_images(self) -> Optional[List[ImageData]]:
+        ws = self.get_current_workspace()
+        if ws is None:
+            return None
+        return self.__repo.get_all_images_for_workspace(ws.id)
+
+    def get_current_workspace_images_rank_histogram(self) -> Optional[Dict[int, int]]:
+        ws = self.get_current_workspace()
+        if ws is None:
+            return None
+        return self.__repo.get_image_rank_histogram(ws.id)
 
     def get_workspaces(self) -> List[Workspace]:
         return self.__repo.get_all_workspaces()
