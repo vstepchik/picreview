@@ -1,6 +1,4 @@
-git+https://github.com/pyimgui/pyimgui.git@abef4a6aaa541e78b822bef65fc3f25be50cac66#egg=imgui
-glfw == 2.5.*
-
+imgui[glfw] == 2.0.0
 parameterized == 0.9.*
 Pillow == 9.5.*
 PyYAML == 6.0.*
