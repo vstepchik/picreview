@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, List
 
 import imgui
+
 from app.gui.file_selector import FileSelector
 from app.model.workspace import Workspace
 from app.pic_review import PicReview
@@ -53,7 +54,7 @@ class WorkspaceSelector:
             if self._selected_ws_id is not None:
                 imgui.same_line(0, _BTN_WIDTH)
                 if imgui.button("Open", _BTN_WIDTH):
-                    self._backend.set_workspace_as_current(self._selected_ws_id)
+                    self._backend.set_workspace_as_current(self._selected_ws_id, refresh=True)
                 imgui.same_line()
                 if imgui.button("Delete", _BTN_WIDTH):
                     self._show_delete_ws_id = self._selected_ws_id

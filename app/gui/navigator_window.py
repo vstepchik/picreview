@@ -29,4 +29,6 @@ class NavigatorWindow:
                 with imgui.begin_child(label="images_area", border=True, flags=imgui.WINDOW_HORIZONTAL_SCROLLING_BAR):
                     for tx in self._tx:
                         tx.render()
+                        # todo: render image rank - number, and also higher is rank is above current
+                        # rank range, middle if within current range filter, and lower if rank is below the range filter
                         imgui.same_line()

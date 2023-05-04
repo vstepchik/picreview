@@ -26,8 +26,10 @@ class PicReview:
         _log.debug(f"Adding workspace name: {name}, path: {path}")
         return self.__workspace_manager.create_new_workspace(path=path, name=name, set_current=set_current)
 
-    def set_workspace_as_current(self, ws_id: int):
+    def set_workspace_as_current(self, ws_id: int, refresh: bool):
         self.__workspace_manager.set_workspace_as_current(ws_id)
+        if refresh:
+            self.__workspace_manager.refresh_current_workspace()
 
     def is_workspace_selected(self) -> bool:
         return self.__workspace_manager.get_current_workspace_dir() is not None
