@@ -1,7 +1,7 @@
 import dataclasses
 import io
 import os
-from typing import Union
+from typing import Union, Tuple
 
 import OpenGL.GL as GL
 import imgui
@@ -15,11 +15,22 @@ class Texture:
     h: int
     mem_size: int
 
-    def render(self, w: int = None, h: int = None):
-        imgui.image(self.texture_id, w or self.w, h or self.h)
+    def render(self, w: float = None, h: float = None, keep_aspect_ratio: bool = True):
+        if keep_aspect_ratio:
+            w, h = w or self.w, h or self.h
+            img_w, img_h = self._resize_to_fit_keeping_aspect_ratio((w, h))
+            prev_cursor = imgui.get_cursor_pos()
+            imgui.set_cursor_pos((prev_cursor.x + (w - img_w) * 0.5, prev_cursor.y))
+            imgui.image(self.texture_id, img_w, img_h)
+            imgui.set_cursor_pos((prev_cursor.x, prev_cursor.y))
+            imgui.dummy(w, h)
+        else:
+            imgui.image(self.texture_id, w or self.w, h or self.h)
 
-    # def __del__(self):
-    #     GL.glDeleteTextures(self.texture_id)
+    def _resize_to_fit_keeping_aspect_ratio(self, target: Tuple[float, float]) -> Tuple[float, float]:
+        target_w, target_h = target
+        aspect_ratio = min(target_w / self.w, target_h / self.h)
+        return self.w * aspect_ratio, self.h * aspect_ratio
 
     @staticmethod
     def create_form(source: Union[str, os.PathLike, bytes, Image]) -> 'Texture':
